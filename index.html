@@ -1,0 +1,497 @@
+
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>ZEYMIR STARS 3.0</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#10152c;color:white;font-family:Arial;overflow:hidden;touch-action:none}
+button{border:0;cursor:pointer;font-weight:bold}
+.screen{height:100dvh;overflow:auto;text-align:center;padding:20px 15px;background:radial-gradient(#354e86,#10152c)}
+h1{color:#ffda36;font-size:36px;text-shadow:3px 4px #9b4c22}
+.stat{display:inline-block;padding:10px;background:#283c60;border-radius:12px;margin:3px}
+.big{display:block;width:100%;padding:16px;margin:12px 0;border-radius:13px;background:linear-gradient(#ffdb42,#ed941d);font-size:18px;color:#382000}
+.blue{background:linear-gradient(#48baff,#2864dc);color:white}
+.gray{background:#354766;color:white}
+.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:15px 0}
+.card{background:#263858;border:3px solid #536b94;border-radius:15px;padding:12px}
+.card.selected{border-color:#ffdb38}
+.avatar{font-size:45px}
+#game{display:none;position:fixed;inset:0;background:#76b95b}
+canvas{width:100%;height:100%;display:block}
+#hud{position:absolute;top:8px;left:0;width:100%;display:flex;justify-content:space-around;pointer-events:none}
+.hud{background:#15233ddd;padding:9px 12px;border-radius:12px;font-weight:bold}
+#controls{position:absolute;bottom:22px;left:0;width:100%;display:flex;justify-content:space-between;align-items:end;padding:0 18px;pointer-events:none}
+#joy{width:120px;height:120px;border:3px solid #ffffffaa;border-radius:50%;background:#ffffff35;position:relative;touch-action:none;pointer-events:auto}
+#stick{width:48px;height:48px;background:#ffffffcc;border-radius:50%;position:absolute;left:33px;top:33px;pointer-events:none}
+.actions{display:flex;gap:12px;align-items:end;pointer-events:auto}
+.action{border:3px solid white;border-radius:50%;color:white;touch-action:none;user-select:none;-webkit-user-select:none}
+#shoot{width:82px;height:82px;background:#e94d45}
+#super{width:68px;height:68px;background:#914de3}
+#exit{position:absolute;top:55px;left:10px;padding:10px;background:#172642dd;color:white;border-radius:10px}
+#msg{position:absolute;top:42%;width:100%;text-align:center;font-size:25px;font-weight:bold;pointer-events:none}
+#result{display:none;position:fixed;inset:0;background:#10152cee;z-index:5;align-items:center;justify-content:center;padding:20px}
+.box{background:#283c62;border:3px solid #ffdb36;border-radius:20px;padding:25px;text-align:center;width:100%;max-width:380px}
+</style>
+</head>
+<body>
+
+<div id="menu" class="screen">
+<h1>⭐ ZEYMIR STARS ⭐</h1>
+<p>Kendi arenan · Kendi savaşçıların</p>
+<div>
+<div class="stat">🏆 <span id="trophies">0</span></div>
+<div class="stat">💰 <span id="coins">0</span></div>
+<div class="stat">⭐ <span id="wins">0</span></div>
+</div>
+<div style="font-size:85px;margin:25px">⚔️</div>
+<h2>SAVAŞA HAZIR MISIN?</h2>
+<button class="big" onclick="selectMode('team')">⚔️ 3'E 3 SAVAŞ</button>
+<button class="big blue" onclick="selectMode('gem')">💎 MÜCEVHER KAPMACA</button>
+<button class="big" onclick="selectMode('survival')">☠️ HAYATTA KALMA</button>
+<button class="big gray" onclick="showCollection()">🦸 SAVAŞÇILARIM</button>
+</div>
+
+<div id="selection" class="screen" style="display:none">
+<h1>SAVAŞÇINI SEÇ</h1>
+<p id="modeName"></p>
+<div id="cards" class="cards"></div>
+<button class="big" onclick="startGame()">SAVAŞA BAŞLA 🔥</button>
+<button class="big gray" onclick="goMenu()">GERİ</button>
+</div>
+
+<div id="collection" class="screen" style="display:none">
+<h1>KOLEKSİYONUM</h1>
+<div id="collectionCards" class="cards"></div>
+<button class="big gray" onclick="goMenu()">GERİ</button>
+</div>
+
+<div id="game">
+<canvas id="canvas"></canvas>
+<div id="hud">
+<div class="hud">❤️ <span id="hp">100</span></div>
+<div class="hud">💎 <span id="gems">0</span></div>
+<div class="hud">🏆 <span id="kills">0</span></div>
+</div>
+<button id="exit" onclick="goMenu()">✕ ÇIKIŞ</button>
+<div id="msg"></div>
+<div style="position:absolute;bottom:155px;left:50%;transform:translateX(-50%);background:#172642dd;padding:8px 14px;border-radius:12px;white-space:nowrap">⭐ SÜPER <span id="superValue">0</span>%</div>
+<div id="controls">
+<div id="joy"><div id="stick"></div></div>
+<div class="actions">
+<button id="super" class="action">SÜPER</button>
+<button id="shoot" class="action">ATEŞ</button>
+</div>
+</div>
+</div>
+
+<div id="result">
+<div class="box">
+<div style="font-size:60px" id="resultEmoji">🏆</div>
+<h1 id="resultTitle">ZAFER!</h1>
+<p id="resultText"></p>
+<button class="big" onclick="goMenu()">ANA MENÜ</button>
+<button class="big blue" onclick="startGame()">TEKRAR OYNA</button>
+</div>
+</div>
+
+<script>
+"use strict";
+
+const $=id=>document.getElementById(id);
+
+const fighters=[
+{name:"Mavi",emoji:"🔫",color:"#328cff",hp:110,damage:23,speed:3.5},
+{name:"Ateş",emoji:"🔥",color:"#ff653b",hp:130,damage:19,speed:3},
+{name:"Gölge",emoji:"🥷",color:"#aa70ff",hp:85,damage:30,speed:4.2},
+{name:"Robot",emoji:"🤖",color:"#45d5be",hp:120,damage:25,speed:3.2},
+{name:"Yıldız",emoji:"⭐",color:"#ffdc40",hp:95,damage:35,speed:3.6}
+];
+
+let save={};
+try{save=JSON.parse(localStorage.getItem("zeymir3"))||{};}catch(e){}
+save.trophies=save.trophies||0;
+save.coins=save.coins||0;
+save.wins=save.wins||0;
+save.unlocked=save.unlocked||[0];
+
+let selected=0,mode="team";
+function saveGame(){
+try{localStorage.setItem("zeymir3",JSON.stringify(save));}catch(e){}
+}
+function updateStats(){
+$("trophies").textContent=save.trophies;
+$("coins").textContent=save.coins;
+$("wins").textContent=save.wins;
+}
+function hideScreens(){
+$("menu").style.display="none";
+$("selection").style.display="none";
+$("collection").style.display="none";
+$("game").style.display="none";
+$("result").style.display="none";
+}
+function goMenu(){
+running=false;
+cancelAnimationFrame(raf);
+resetControls();
+hideScreens();
+$("menu").style.display="block";
+updateStats();
+}
+function selectMode(m){
+mode=m;
+selected=0;
+hideScreens();
+$("selection").style.display="block";
+$("modeName").textContent=m==="team"?"3'e 3 takım savaşı":m==="gem"?"10 mücevher topla":"Rakiplerini yen!";
+renderCards();
+}
+function renderCards(){
+$("cards").innerHTML="";
+fighters.forEach((f,i)=>{
+let open=save.unlocked.includes(i);
+let el=document.createElement("div");
+el.className="card "+(selected===i?"selected":"");
+el.innerHTML=`<div class="avatar">${f.emoji}</div><h3>${f.name}</h3>
+<p>❤️ ${f.hp} · 💥 ${f.damage}</p>
+<p>${open?"SEÇ":"🔒 "+i*100+" kupa"}</p>`;
+el.onclick=()=>{
+if(!open)return;
+selected=i;
+renderCards();
+};
+$("cards").appendChild(el);
+});
+}
+function showCollection(){
+hideScreens();
+$("collection").style.display="block";
+$("collectionCards").innerHTML=fighters.map((f,i)=>`
+<div class="card"><div class="avatar">${f.emoji}</div>
+<h3>${f.name}</h3><p>${save.unlocked.includes(i)?"AÇIK":"🔒 KİLİTLİ"}</p></div>`).join("");
+}
+
+// OYUN
+const canvas=$("canvas");
+const ctx=canvas.getContext("2d");
+let W=0,H=0;
+let player,bots=[],allies=[],bullets=[],gems=[],walls=[];
+let running=false,raf=0,frame=0,kills=0,gemCount=0,charge=0;
+let joy={x:0,y:0},firing=false;
+
+function resize(){
+const r=canvas.getBoundingClientRect();
+const d=Math.min(devicePixelRatio||1,2);
+W=r.width;H=r.height;
+canvas.width=W*d;canvas.height=H*d;
+ctx.setTransform(d,0,0,d,0,0);
+}
+window.addEventListener("resize",()=>{if(running)resize();});
+
+function rand(a,b){return Math.random()*(b-a)+a;}
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+function makeFighter(x,y,team,index){
+let f=fighters[index];
+return {x,y,team,r:17,hp:f.hp,max:f.hp,
+damage:f.damage,speed:f.speed,color:f.color,
+emoji:f.emoji,alive:true};
+}
+function nearest(from,list){
+let targets=list.filter(t=>t.alive);
+if(!targets.length)return null;
+return targets.reduce((a,b)=>dist(from,a)<dist(from,b)?a:b);
+}
+function gemSpawn(){
+gems.push({x:rand(-500,500),y:rand(-350,350)});
+}
+function startGame(){
+cancelAnimationFrame(raf);
+hideScreens();
+$("game").style.display="block";
+resize();
+player=makeFighter(0,0,0,selected);
+bots=[];allies=[];bullets=[];gems=[];walls=[];
+kills=0;gemCount=0;charge=0;frame=0;
+
+if(mode==="team"){
+allies.push(makeFighter(-100,70,0,0),makeFighter(100,70,0,2));
+for(let i=0;i<3;i++)bots.push(makeFighter(rand(220,430),rand(-250,250),1,i+1));
+}else{
+for(let i=0;i<(mode==="gem"?5:8);i++)
+bots.push(makeFighter(rand(200,450),rand(-300,300),1,i%5));
+}
+for(let i=0;i<20;i++)gemSpawn();
+for(let i=0;i<15;i++)walls.push({x:rand(-450,450),y:rand(-300,300),w:rand(40,75),h:rand(35,70)});
+
+resetControls();
+running=true;
+raf=requestAnimationFrame(loop);
+}
+
+function resetControls(){
+joy.x=0;joy.y=0;firing=false;
+shootPointers.clear();
+joyPointer=null;
+$("stick").style.left="33px";
+$("stick").style.top="33px";
+}
+
+function move(f,dx,dy){
+let nx=f.x+dx,ny=f.y+dy;
+let blocked=walls.some(w=>nx+f.r>w.x&&nx-f.r<w.x+w.w&&ny+f.r>w.y&&ny-f.r<w.y+w.h);
+if(!blocked){f.x=nx;f.y=ny;}
+}
+function fire(f,target,extra=false){
+if(!target)return;
+let a=Math.atan2(target.y-f.y,target.x-f.x);
+bullets.push({x:f.x,y:f.y,dx:Math.cos(a)*(extra?10:8),dy:Math.sin(a)*(extra?10:8),
+team:f.team,damage:f.damage*(extra?2:1),life:65,color:f.team===0?"#ffe45c":"#ff706b"});
+}
+function hit(t,d,team){
+t.hp-=d;
+if(t.hp<=0&&t.alive){
+t.hp=0;t.alive=false;
+if(team===0){kills++;charge=Math.min(100,charge+25);gemSpawn();}
+}
+}
+function ai(b,i){
+if(!b.alive)return;
+let target=nearest(b,mode==="team"?[player,...allies]:[player]);
+if(!target)return;
+let d=dist(b,target)||1;
+if(d>90)move(b,(target.x-b.x)/d*b.speed,(target.y-b.y)/d*b.speed);
+if(d<310&&frame%(60+i*6)===0)fire(b,target);
+}
+
+function loop(){
+if(!running)return;
+frame++;
+
+// Hareket
+move(player,joy.x*player.speed,joy.y*player.speed);
+
+// Takım arkadaşları
+allies.forEach((a,i)=>{
+if(!a.alive)return;
+let t=nearest(a,bots);
+if(!t)return;
+let d=dist(a,t)||1;
+if(d>110)move(a,(t.x-a.x)/d*a.speed*.8,(t.y-a.y)/d*a.speed*.8);
+if(d<300&&frame%65===i*15)fire(a,t);
+});
+
+// Rakipler
+bots.forEach(ai);
+
+// Ateş
+if(firing&&frame%12===0){
+fire(player,nearest(player,bots));
+}
+
+// Mermiler
+bullets.forEach(b=>{
+b.x+=b.dx;b.y+=b.dy;b.life--;
+let targets=b.team===0?bots:[player,...allies];
+targets.forEach(t=>{
+if(t.alive&&dist(b,t)<t.r+6&&b.life>0){
+hit(t,b.damage,b.team);b.life=0;
+}
+});
+});
+bullets=bullets.filter(b=>b.life>0);
+
+// Mücevherler
+gems=gems.filter(g=>{
+if(dist(g,player)<27){
+gemCount++;charge=Math.min(100,charge+10);return false;
+}
+return true;
+});
+if(frame%220===0&&gems.length<30)gemSpawn();
+
+if(player.hp<=0){
+if(mode==="survival"){finish(false);return;}
+player.hp=player.max;player.x=0;player.y=0;
+}
+if(mode==="gem"&&gemCount>=10){finish(true);return;}
+if(mode==="team"&&bots.every(b=>!b.alive)){finish(true);return;}
+if(mode==="survival"&&bots.every(b=>!b.alive)){finish(true);return;}
+
+$("hp").textContent=Math.ceil(player.hp);
+$("gems").textContent=gemCount;
+$("kills").textContent=kills;
+$("superValue").textContent=charge;
+
+draw();
+raf=requestAnimationFrame(loop);
+}
+
+function draw(){
+ctx.fillStyle="#75b65b";ctx.fillRect(0,0,W,H);
+ctx.save();
+ctx.translate(W/2-player.x,H/2-player.y);
+
+// Zemin
+ctx.strokeStyle="#ffffff19";ctx.lineWidth=1;
+for(let x=-1000;x<1000;x+=60){
+ctx.beginPath();ctx.moveTo(x,-1000);ctx.lineTo(x,1000);ctx.stroke();
+}
+for(let y=-1000;y<1000;y+=60){
+ctx.beginPath();ctx.moveTo(-1000,y);ctx.lineTo(1000,y);ctx.stroke();
+}
+
+// Duvarlar
+walls.forEach(w=>{
+ctx.fillStyle="#397d3e";ctx.fillRect(w.x,w.y,w.w,w.h);
+ctx.fillStyle="#63a24c";ctx.fillRect(w.x+4,w.y+4,w.w-8,w.h-8);
+});
+
+// Mücevher
+gems.forEach(g=>{
+ctx.save();ctx.translate(g.x,g.y);ctx.rotate(Math.PI/4);
+ctx.fillStyle="#44efff";ctx.fillRect(-7,-7,14,14);ctx.restore();
+});
+
+// Mermiler
+bullets.forEach(b=>{
+ctx.fillStyle=b.color;ctx.beginPath();
+ctx.arc(b.x,b.y,5,0,Math.PI*2);ctx.fill();
+});
+
+// Karakterler
+[...allies.filter(a=>a.alive),...bots.filter(b=>b.alive),player].forEach(f=>{
+ctx.fillStyle=f.team===0?"#17468e":"#922f30";
+ctx.beginPath();ctx.arc(f.x,f.y,f.r+3,0,Math.PI*2);ctx.fill();
+ctx.fillStyle=f.color;ctx.beginPath();ctx.arc(f.x,f.y,f.r,0,Math.PI*2);ctx.fill();
+ctx.font="20px Arial";ctx.textAlign="center";
+ctx.fillText(f.emoji,f.x,f.y+7);
+ctx.fillStyle="#17233b";ctx.fillRect(f.x-19,f.y+23,38,5);
+ctx.fillStyle=f.hp>f.max*.35?"#4be979":"#ff4444";
+ctx.fillRect(f.x-19,f.y+23,38*Math.max(0,f.hp/f.max),5);
+});
+ctx.restore();
+}
+
+function finish(win){
+if(!running)return;
+running=false;
+cancelAnimationFrame(raf);
+if(win){
+save.trophies+=mode==="team"?8:mode==="gem"?6:10;
+save.coins+=30;save.wins++;
+for(let i=1;i<5;i++){
+if(save.trophies>=i*100&&!save.unlocked.includes(i))save.unlocked.push(i);
+}
+}
+saveGame();updateStats();
+$("resultEmoji").textContent=win?"🏆":"💔";
+$("resultTitle").textContent=win?"ZAFER!":"YENİLGİ";
+$("resultText").textContent=win?
+`${kills} rakip yendin! Kupa ve altın kazandın.`:
+`${kills} rakip yendin. Tekrar dene!`;
+$("result").style.display="flex";
+}
+
+// JOYSTICK - iPHONE DOKUNMATİK KONTROL
+const joyEl=$("joy");
+const stickEl=$("stick");
+let joyPointer=null;
+
+function joystickMove(e){
+const r=joyEl.getBoundingClientRect();
+let x=e.clientX-r.left-r.width/2;
+let y=e.clientY-r.top-r.height/2;
+const max=38,d=Math.hypot(x,y);
+if(d>max){x=x/d*max;y=y/d*max;}
+joy.x=x/max;joy.y=y/max;
+stickEl.style.left=(33+x)+"px";
+stickEl.style.top=(33+y)+"px";
+}
+function joystickEnd(){
+joyPointer=null;
+joy.x=0;joy.y=0;
+stickEl.style.left="33px";
+stickEl.style.top="33px";
+}
+
+joyEl.addEventListener("pointerdown",e=>{
+e.preventDefault();
+if(joyPointer!==null)return;
+joyPointer=e.pointerId;
+joyEl.setPointerCapture(e.pointerId);
+joystickMove(e);
+});
+joyEl.addEventListener("pointermove",e=>{
+if(e.pointerId===joyPointer)joystickMove(e);
+});
+joyEl.addEventListener("pointerup",e=>{
+if(e.pointerId===joyPointer)joystickEnd();
+});
+joyEl.addEventListener("pointercancel",joystickEnd);
+
+// ATEŞ BUTONU
+const shootBtn=$("shoot");
+let shootPointers=new Set();
+
+function firingUpdate(){firing=shootPointers.size>0;}
+
+shootBtn.addEventListener("pointerdown",e=>{
+e.preventDefault();
+shootPointers.add(e.pointerId);
+shootBtn.setPointerCapture(e.pointerId);
+firingUpdate();
+});
+shootBtn.addEventListener("pointerup",e=>{
+shootPointers.delete(e.pointerId);firingUpdate();
+});
+shootBtn.addEventListener("pointercancel",e=>{
+shootPointers.delete(e.pointerId);firingUpdate();
+});
+shootBtn.addEventListener("lostpointercapture",e=>{
+shootPointers.delete(e.pointerId);firingUpdate();
+});
+
+// SÜPER
+$("super").addEventListener("pointerdown",e=>{
+e.preventDefault();
+if(!running||charge<100)return;
+let t=nearest(player,bots);
+if(!t)return;
+let a=Math.atan2(t.y-player.y,t.x-player.x);
+for(let i=-2;i<=2;i++){
+let angle=a+i*.2;
+bullets.push({x:player.x,y:player.y,
+dx:Math.cos(angle)*10,dy:Math.sin(angle)*10,
+team:0,damage:player.damage*2,life:60,color:"#dc8cff"});
+}
+charge=0;
+});
+
+// Klavye
+let keys=new Set();
+window.addEventListener("keydown",e=>keys.add(e.key.toLowerCase()));
+window.addEventListener("keyup",e=>keys.delete(e.key.toLowerCase()));
+
+function keyboard(){
+if(running){
+let x=(keys.has("d")||keys.has("arrowright")?1:0)-(keys.has("a")||keys.has("arrowleft")?1:0);
+let y=(keys.has("s")||keys.has("arrowdown")?1:0)-(keys.has("w")||keys.has("arrowup")?1:0);
+if(x||y){
+let d=Math.hypot(x,y);
+joy.x=x/d;joy.y=y/d;
+}
+}
+requestAnimationFrame(keyboard);
+}
+window.addEventListener("blur",()=>{
+joystickEnd();shootPointers.clear();firingUpdate();keys.clear();
+});
+
+updateStats();
+keyboard();
+</script>
+</body>
+</html>
